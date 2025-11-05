@@ -34,7 +34,7 @@ def get_file_paths() -> Dict[str, Path]:
         "benchmark": Path("files/cornering.json"),
         "dxf": Path("data/geometries/cornering.dxf"),
         "wkt": Path("data/geometries/cornering.wkt"),
-        "output_dir": Path("submissions/cornering/jupedsim"),
+        "output_dir": Path("simulation_results/cornering/jupedsim"),
     }
 
 
@@ -186,14 +186,25 @@ def spawn_agent(
     logger.debug(
         f"Adding agent {agent_idx} at time {time_step:.2f}s at position {positions[0]}"
     )
+    if agent_parameter_class == jps.SocialForceModelAgentParameters:
+        # This workaround is necessary because of a bug in the SFM. Agents can't navigate this narrow geometry.
+        parameters = agent_parameter_class(
+            journey_id=journey_id,
+            stage_id=exit_id,
+            radius=radius,
+            desired_speed=desired_speed,
+            position=positions[0],
+            obstacle_scale=2.0,  # Workaround for narrow geometry issue
+        )
 
-    parameters = agent_parameter_class(
-        journey_id=journey_id,
-        stage_id=exit_id,
-        radius=radius,
-        desired_speed=desired_speed,
-        position=positions[0],
-    )
+    else:
+        parameters = agent_parameter_class(
+            journey_id=journey_id,
+            stage_id=exit_id,
+            radius=radius,
+            desired_speed=desired_speed,
+            position=positions[0],
+        )
 
     simulation.add_agent(parameters)
 
@@ -291,7 +302,6 @@ def main() -> None:
     logger.info("=" * 70)
 
     try:
-        # Get file paths
         paths = get_file_paths()
 
         # Convert geometry if needed
@@ -300,11 +310,9 @@ def main() -> None:
         else:
             logger.info(f"Using existing WKT file: {paths['wkt']}")
 
-        # Load geometry
         walkable_area = load_geometry_from_wkt(paths["wkt"])
         geometry = walkable_area.polygon
 
-        # Load configuration
         config = load_benchmark_config(paths["benchmark"])
         sim_params = extract_simulation_parameters(config)
         distribution_area, goal_area = extract_area_polygons(config)

@@ -7,7 +7,7 @@
   "simulation_parameters": {
     "desired_speed": 1.0,
     "time_start": 0.0,
-    "radius": 0.15,
+    "radius": 0.1,
     "time_end": 100.0,
     "num_agents": 1
   },
