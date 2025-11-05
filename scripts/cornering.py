@@ -90,6 +90,19 @@ def create_polygon_from_bounds(
 # ============================================================================
 
 
+def visualize_results(
+    walkable_area: pedpy.WalkableArea, trajectory_file: Path, output_file: Path
+) -> None:
+    """Visualize simulation trajectories."""
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+    data = pedpy.load_trajectory_from_jupedsim_sqlite(trajectory_file)
+    pedpy.plot_trajectories(traj=data, walkable_area=walkable_area, axes=ax)
+    fig.savefig(output_file, dpi=160)
+    logger.info(f"Trajectory visualization saved to {output_file}")
+
+
 def extract_simulation_parameters(config: dict) -> dict:
     """Extract simulation parameters from config."""
     sim_params = config["simulation_parameters"]
@@ -265,6 +278,15 @@ def run_simulation(
         simulation.iterate()
 
     logger.info(f"Simulation completed: {sim_config['name']}")
+    paths = get_file_paths()
+    walkable_area = load_geometry_from_wkt(paths["wkt"])
+    figname = paths["output_dir"] / (sim_config["name"].replace(" ", "_") + ".png")
+    visualize_results(
+        walkable_area=walkable_area,
+        trajectory_file=sim_config["output_file"],
+        output_file=figname,
+    )
+    logger.info(f"Plot trajectories to {figname}")
 
 
 def run_all_simulations(
@@ -298,7 +320,7 @@ def main() -> None:
     setup_logging(log_file=log_file)
 
     logger.info("=" * 70)
-    logger.info("Starting JuPedSim Cornering Benchmark")
+    logger.info("Starting JuPedSim Cornering Simulation")
     logger.info("=" * 70)
 
     try:
@@ -346,20 +368,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-# ============================================================================
-# Visualization (optional)
-# ============================================================================
-
-# def visualize_results(walkable_area: pedpy.WalkableArea,
-#                      trajectory_file: Path,
-#                      output_file: Path) -> None:
-#     """Visualize simulation trajectories."""
-#     import matplotlib.pyplot as plt
-#
-#     fig, ax = plt.subplots(1, 1, figsize=(10, 8))
-#     data = pedpy.load_trajectory_from_jupedsim_sqlite(trajectory_file)
-#     pedpy.plot_trajectories(traj=data, walkable_area=walkable_area, axes=ax)
-#     fig.savefig(output_file, dpi=160)
-#     logger.info(f"Trajectory visualization saved to {output_file}")
