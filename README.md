@@ -1,2 +1,4 @@
-# bped
-Simulate pedestrian dynamics for fire safety
+# BPED
+Blender-PedestrianDynamics
+
+Test
