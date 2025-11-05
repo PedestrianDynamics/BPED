@@ -1,150 +1,357 @@
-"""Run JuPedSim for curvature analysis."""
+"""Run JuPedSim for curvature analysis.
+
+Call as module
+uv run python -m scripts.cornering.py
+
+"""
+
+import json
+import random
+import subprocess
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 import jupedsim as jps
-from pathlib import Path
-import json
-from shapely.geometry import Polygon
-import random
 import numpy as np
 import pedpy
-import subprocess
+import shapely.wkt
+from shapely.geometry import Polygon
 
-PATH = Path("..")
-benchmark_file = "files/cornering.json"
-dxf_filename = "data/geometries/cornering.dxf"
+from src.bped.utils.logging_config import setup_logging, get_logger
 
-print(f"Converting DXF to WKT {dxf_filename = }...")
-
-wkt_filename = dxf_filename.split(".")[0] + ".wkt"
-print(wkt_filename)
+logger = get_logger(__name__)
 
 
-def load_geometry_from_wkt(wkt_file: Path) -> pedpy.WalkableArea:
-    """Load geometry from a WKT file."""
-    import shapely.wkt
+# ============================================================================
+# Configuration and File Handling
+# ============================================================================
 
-    with open(wkt_file, "r") as f:
-        geometry = shapely.wkt.loads(f.read())
-    return pedpy.WalkableArea(geometry)
+
+def get_file_paths() -> Dict[str, Path]:
+    """Get all file paths used in the simulation."""
+    return {
+        "benchmark": Path("files/cornering.json"),
+        "dxf": Path("data/geometries/cornering.dxf"),
+        "wkt": Path("data/geometries/cornering.wkt"),
+        "output_dir": Path("submissions/cornering/jupedsim"),
+    }
 
 
 def load_benchmark_config(config_file: Path) -> dict:
     """Load benchmark configuration from JSON file."""
+    logger.info(f"Loading benchmark configuration from {config_file}")
     with open(config_file, "r") as f:
         return json.load(f)
 
 
-convert_cmd = [
-    "python",
-    "scripts/dxf2wkt.py",
-    "convert",
-    "-i",
-    dxf_filename,
-    "-o",
-    wkt_filename,
-]
-
-subprocess.run(convert_cmd, check=True)
+# ============================================================================
+# Geometry Processing
+# ============================================================================
 
 
-walkable_area = load_geometry_from_wkt(wkt_filename)
-geometry = walkable_area.polygon
+def convert_dxf_to_wkt(dxf_file: Path, wkt_file: Path) -> None:
+    """Convert DXF file to WKT format."""
+    logger.info(f"Converting DXF to WKT: {dxf_file} -> {wkt_file}")
 
-
-# ---- read json ----
-config = load_benchmark_config(benchmark_file)
-radius = config["simulation_parameters"]["radius"]
-desired_speed = config["simulation_parameters"]["desired_speed"]
-num_agents = config["simulation_parameters"]["num_agents"]
-time_start = config["simulation_parameters"]["time_start"]
-time_end = config["simulation_parameters"]["time_end"]
-x_min = config["agent_generation"]["start_area"]["x_min"]
-x_max = config["agent_generation"]["start_area"]["x_max"]
-y_min = config["agent_generation"]["start_area"]["y_min"]
-y_max = config["agent_generation"]["start_area"]["y_max"]
-
-distribution_area = Polygon(
-    [[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]]
-)
-
-x_min_end = config["agent_generation"]["goal_area"]["x_min"]
-x_max_end = config["agent_generation"]["goal_area"]["x_max"]
-y_min_end = config["agent_generation"]["goal_area"]["y_min"]
-y_max_end = config["agent_generation"]["goal_area"]["y_max"]
-goal_area = Polygon(
-    [
-        [x_min_end, y_min_end],
-        [x_max_end, y_min_end],
-        [x_max_end, y_max_end],
-        [x_min_end, y_max_end],
+    convert_cmd = [
+        "python",
+        "scripts/dxf2wkt.py",
+        "convert",
+        "-i",
+        str(dxf_file),
+        "-o",
+        str(wkt_file),
     ]
-)
 
-# --- setup simulation ---
-models = ["Collision Free Speed Model", "Social Force Model"]
-output_dir = PATH / "submissions/cornering/jupedsim"
-output_dir.mkdir(parents=True, exist_ok=True)
-simulations = [
-    jps.Simulation(
-        model=jps.CollisionFreeSpeedModel(),
-        geometry=geometry,
-        trajectory_writer=jps.SqliteTrajectoryWriter(
-            output_file=Path(output_dir / "jupedsim_csm.sqlite"),
-        ),
-    ),
-    jps.Simulation(
-        model=jps.SocialForceModel(),
-        geometry=geometry,
-        trajectory_writer=jps.SqliteTrajectoryWriter(
-            output_file=Path(output_dir / "jupedsim_sfm.sqlite"),
-        ),
-    ),
-]
-agent_parameters = [
-    jps.CollisionFreeSpeedModelAgentParameters,
-    jps.SocialForceModelAgentParameters,
-]
+    subprocess.run(convert_cmd, check=True)
+    logger.info("DXF conversion completed successfully")
 
-spawn_times = np.linspace(time_start, time_end, num_agents)
 
-for i, (simulation, agent_parameter) in enumerate(zip(simulations, agent_parameters)):
-    print("Running simulation with model:", models[i])
+def load_geometry_from_wkt(wkt_file: Path) -> pedpy.WalkableArea:
+    """Load geometry from a WKT file."""
+    logger.info(f"Loading geometry from {wkt_file}")
+
+    with open(wkt_file, "r") as f:
+        geometry = shapely.wkt.loads(f.read())
+
+    return pedpy.WalkableArea(geometry)
+
+
+def create_polygon_from_bounds(
+    x_min: float, x_max: float, y_min: float, y_max: float
+) -> Polygon:
+    """Create a rectangular polygon from min/max coordinates."""
+    return Polygon([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]])
+
+
+# ============================================================================
+# Simulation Setup
+# ============================================================================
+
+
+def extract_simulation_parameters(config: dict) -> dict:
+    """Extract simulation parameters from config."""
+    sim_params = config["simulation_parameters"]
+
+    return {
+        "radius": sim_params["radius"],
+        "desired_speed": sim_params["desired_speed"],
+        "num_agents": sim_params["num_agents"],
+        "time_start": sim_params["time_start"],
+        "time_end": sim_params["time_end"],
+    }
+
+
+def extract_area_polygons(config: dict) -> Tuple[Polygon, Polygon]:
+    """Extract start and goal area polygons from config."""
+    start = config["agent_generation"]["start_area"]
+    goal = config["agent_generation"]["goal_area"]
+
+    start_area = create_polygon_from_bounds(
+        start["x_min"], start["x_max"], start["y_min"], start["y_max"]
+    )
+
+    goal_area = create_polygon_from_bounds(
+        goal["x_min"], goal["x_max"], goal["y_min"], goal["y_max"]
+    )
+
+    return start_area, goal_area
+
+
+def create_simulations(geometry: Polygon, output_dir: Path) -> List[Dict]:
+    """Create simulation configurations for different models."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    simulations = [
+        {
+            "name": "Collision Free Speed Model",
+            "model": jps.CollisionFreeSpeedModel(),
+            "agent_parameters": jps.CollisionFreeSpeedModelAgentParameters,
+            "output_file": output_dir / "jupedsim_csm.sqlite",
+        },
+        {
+            "name": "Social Force Model",
+            "model": jps.SocialForceModel(),
+            "agent_parameters": jps.SocialForceModelAgentParameters,
+            "output_file": output_dir / "jupedsim_sfm.sqlite",
+        },
+    ]
+
+    # Create JuPedSim simulation objects
+    for sim_config in simulations:
+        sim_config["simulation"] = jps.Simulation(
+            model=sim_config["model"],
+            geometry=geometry,
+            trajectory_writer=jps.SqliteTrajectoryWriter(
+                output_file=sim_config["output_file"]
+            ),
+        )
+
+    return simulations
+
+
+# ============================================================================
+# Agent Management
+# ============================================================================
+
+
+def calculate_spawn_times(
+    time_start: float, time_end: float, num_agents: int
+) -> np.ndarray:
+    """Calculate spawn times for agents uniformly distributed over time."""
+    return np.linspace(time_start, time_end, num_agents)
+
+
+def spawn_agent(
+    simulation: jps.Simulation,
+    distribution_area: Polygon,
+    agent_parameter_class: type,
+    journey_id: int,
+    exit_id: int,
+    radius: float,
+    desired_speed: float,
+    agent_idx: int,
+    time_step: float,
+) -> None:
+    """Spawn a single agent in the simulation."""
+    positions = jps.distribute_by_number(
+        polygon=distribution_area,
+        number_of_agents=1,
+        distance_to_agents=0.4,
+        distance_to_polygon=0.2,
+        seed=random.randint(1, 100000),
+    )
+
+    logger.debug(
+        f"Adding agent {agent_idx} at time {time_step:.2f}s at position {positions[0]}"
+    )
+
+    parameters = agent_parameter_class(
+        journey_id=journey_id,
+        stage_id=exit_id,
+        radius=radius,
+        desired_speed=desired_speed,
+        position=positions[0],
+    )
+
+    simulation.add_agent(parameters)
+
+
+# ============================================================================
+# Simulation Execution
+# ============================================================================
+
+
+def setup_journey(simulation: jps.Simulation, goal_area: Polygon) -> Tuple[int, int]:
+    """Set up the journey (exit and path) for agents."""
     exit_id = simulation.add_exit_stage(goal_area)
     journey = jps.JourneyDescription()
     journey.add(exit_id)
     journey_id = simulation.add_journey(journey)
-    # Track which agents have been added
-    agents_to_add = list(range(num_agents))
+
+    return journey_id, exit_id
+
+
+def run_simulation(
+    sim_config: dict,
+    distribution_area: Polygon,
+    goal_area: Polygon,
+    sim_params: dict,
+    spawn_times: np.ndarray,
+) -> None:
+    """Run a single simulation with the given configuration."""
+    logger.info(f"Running simulation with model: {sim_config['name']}")
+
+    simulation = sim_config["simulation"]
+    agent_parameter_class = sim_config["agent_parameters"]
+
+    # Setup journey
+    journey_id, exit_id = setup_journey(simulation, goal_area)
+
+    # Run simulation with time-based agent spawning
     next_agent_idx = 0
+    num_agents = len(spawn_times)
+
     while simulation.agent_count() > 0 or next_agent_idx < num_agents:
         time_step = simulation.elapsed_time()
+
+        # Spawn agents whose time has come
         while next_agent_idx < num_agents and spawn_times[next_agent_idx] <= time_step:
-            positions = jps.distribute_by_number(
-                polygon=distribution_area,
-                number_of_agents=1,
-                distance_to_agents=0.4,
-                distance_to_polygon=0.2,
-                seed=random.randint(1, 100000),
-            )
-            print(
-                f"Adding agent {next_agent_idx} at time {time_step:.2f}s at position {positions[0]}"
-            )
-            parameters = agent_parameter(
+            spawn_agent(
+                simulation=simulation,
+                distribution_area=distribution_area,
+                agent_parameter_class=agent_parameter_class,
                 journey_id=journey_id,
-                stage_id=exit_id,
-                radius=radius,
-                desired_speed=desired_speed,
-                position=positions[0],
+                exit_id=exit_id,
+                radius=sim_params["radius"],
+                desired_speed=sim_params["desired_speed"],
+                agent_idx=next_agent_idx,
+                time_step=time_step,
             )
-            simulation.add_agent(parameters)
             next_agent_idx += 1
 
         simulation.iterate()
 
+    logger.info(f"Simulation completed: {sim_config['name']}")
 
-# import pedpy
-# import matplotlib.pyplot as plt
-# fig, ax = plt.subplots(1, 1, figsize=(10, 8))
-# data = pedpy.load_trajectory_from_jupedsim_sqlite(Path("cornering_jupedsim_csm.sqlite"))
-# pedpy.plot_trajectories(traj=data, walkable_area=walkable_area, axes=ax)
-# fig.savefig("cornering_csm.png", dpi=160)
+
+def run_all_simulations(
+    simulations: List[Dict],
+    distribution_area: Polygon,
+    goal_area: Polygon,
+    sim_params: dict,
+    spawn_times: np.ndarray,
+) -> None:
+    """Run all configured simulations."""
+    for sim_config in simulations:
+        run_simulation(
+            sim_config=sim_config,
+            distribution_area=distribution_area,
+            goal_area=goal_area,
+            sim_params=sim_params,
+            spawn_times=spawn_times,
+        )
+
+
+# ============================================================================
+# Main Orchestration
+# ============================================================================
+
+
+def main() -> None:
+    """Main function to orchestrate the cornering benchmark simulation."""
+    # Setup logging
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f")[:-3]
+    log_file = f"cornering_{timestamp}.log"
+    setup_logging(log_file=log_file)
+
+    logger.info("=" * 70)
+    logger.info("Starting JuPedSim Cornering Benchmark")
+    logger.info("=" * 70)
+
+    try:
+        # Get file paths
+        paths = get_file_paths()
+
+        # Convert geometry if needed
+        if not paths["wkt"].exists():
+            convert_dxf_to_wkt(paths["dxf"], paths["wkt"])
+        else:
+            logger.info(f"Using existing WKT file: {paths['wkt']}")
+
+        # Load geometry
+        walkable_area = load_geometry_from_wkt(paths["wkt"])
+        geometry = walkable_area.polygon
+
+        # Load configuration
+        config = load_benchmark_config(paths["benchmark"])
+        sim_params = extract_simulation_parameters(config)
+        distribution_area, goal_area = extract_area_polygons(config)
+
+        logger.info(f"Simulation parameters: {sim_params}")
+
+        # Calculate spawn times
+        spawn_times = calculate_spawn_times(
+            sim_params["time_start"], sim_params["time_end"], sim_params["num_agents"]
+        )
+
+        # Create and run simulations
+        simulations = create_simulations(geometry, paths["output_dir"])
+        run_all_simulations(
+            simulations=simulations,
+            distribution_area=distribution_area,
+            goal_area=goal_area,
+            sim_params=sim_params,
+            spawn_times=spawn_times,
+        )
+
+        logger.info("=" * 70)
+        logger.info("All simulations completed successfully")
+        logger.info(f"Results saved to: {paths['output_dir']}")
+        logger.info("=" * 70)
+
+    except Exception as e:
+        logger.error(f"Simulation failed with error: {e}", exc_info=True)
+        raise
+
+
+if __name__ == "__main__":
+    main()
+
+
+# ============================================================================
+# Visualization (optional)
+# ============================================================================
+
+# def visualize_results(walkable_area: pedpy.WalkableArea,
+#                      trajectory_file: Path,
+#                      output_file: Path) -> None:
+#     """Visualize simulation trajectories."""
+#     import matplotlib.pyplot as plt
+#
+#     fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+#     data = pedpy.load_trajectory_from_jupedsim_sqlite(trajectory_file)
+#     pedpy.plot_trajectories(traj=data, walkable_area=walkable_area, axes=ax)
+#     fig.savefig(output_file, dpi=160)
+#     logger.info(f"Trajectory visualization saved to {output_file}")
