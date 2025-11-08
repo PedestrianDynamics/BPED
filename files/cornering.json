@@ -1,0 +1,31 @@
+{
+  "id": "cornering",
+  "description": "Benchmark for pedestrian curved trajectory dynamics",
+    "geometry": {
+        "dxf": "geometry_files/dxf_files/cornering.dxf"
+    },
+  "simulation_parameters": {
+    "desired_speed": 1.0,
+    "time_start": 0.0,
+    "radius": 0.1,
+    "time_end": 100.0,
+    "num_agents": 1
+  },
+  "agent_generation": {
+    "distribution": "uniform",
+    "start_area": {
+      "type": "rectangle",
+      "x_min": 0.01,
+      "x_max": 0.48,
+      "y_min": 0.01,
+      "y_max": 1.0
+    },
+    "goal_area": {
+      "type": "rectangle",
+      "x_min": 59.06,
+      "x_max": 59.49,
+      "y_min": 11.41,
+      "y_max": 12.4
+    }
+  }
+}

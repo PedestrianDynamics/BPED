@@ -1,0 +1,22 @@
+[project]
+name = "bped"
+version = "0.1.0"
+description = "BPED: Building Pedestrian Evacuation Dynamics"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "ezdxf>=1.4.3",
+    "geopandas>=1.1.1",
+    "jupedsim>=1.3.1",
+    "pedpy>=1.4.0",
+    "typer>=0.20.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "ruff>=0.14.3",
+]
+
+[tool.uv.workspace]
+members = ["bped"]
