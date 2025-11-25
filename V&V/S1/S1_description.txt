@@ -1,0 +1,26 @@
+Reference: Ronchi, E., Kuligowski, E. D., Reneke, P. A., Peacock, R. D., & Nilsson, D. (2013). The process of verification and validation of building fire evacuation models.
+
+Reference link: https://nvlpubs.nist.gov/nistpubs/technicalnotes/NIST.TN.1822.pdf
+
+Page: 16
+
+Test: Pre-evacuation time distributions
+
+Geometry:
+A room of size 8 m by 5 m with a 1 m exit.
+
+Scenario: 
+Ten persons are randomly located in the room. Check the types of distributions used by the evacuation model to represent pre-evacuation times. Impose a pre-defined distribution (e.g. uniform, normal, log-normal, etc.) of pre-evacuation times in accordance with the input distributions provided within the evacuation model. Repeat the test for each distribution of preevacuation time embedded in the model.
+
+Expected:
+Verify that each occupant starts moving at the appropriate time and that the responses of the population fall within the specified range.
+
+Test method:
+The test method is a quantitative verification of the model assignment expressed in terms of preevacuation time. In relation to the type of distribution under consideration, the model tester needs to identify a suitable quantitative method to evaluate the differences among the simulated and assigned distributions.
+
+User’s actions:
+It should be noted that this test should be repeated several times (i.e. multiple runs of the same scenario should be done) in order to verify the simulation of the expected pre-evacuation time distributions over multiple runs.
+
+Operational instructions:
+For each distribution test 100 times using diferet random seeds
+Check the pre-evacuation data fit the original distribution with the 10x1000 (10 agents x 100 runs) data points.
