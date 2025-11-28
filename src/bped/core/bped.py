@@ -21,9 +21,10 @@ import random
 # getting the name of the directory
 # where the this file is present.
 #dxf2wkt_path = os.path.dirname(os.path.realpath(__file__) + "/../../../scripts/")
-dxf2wkt_path = "/home/rupole1185/opencases/CASI-TEST/bped/scripts"
-sys.path.insert( 0, dxf2wkt_path )
+script_path = "/home/rupole1185/opencases/CASI-TEST/bped/scripts"
+sys.path.insert( 0, script_path )
 
+from distributions import gamma_pdf, lognormal_pdf, loglogistic_pdf, loglogistic_pdf, weibull_pdf
 from dxf2wkt import convert as dxfconvert
 
 class Agents(Enum):
