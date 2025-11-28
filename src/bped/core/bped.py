@@ -1,5 +1,5 @@
 #!python3.12
-import os
+import os, sys
 import random
 import logging
 import matplotlib.pyplot as plt
@@ -15,16 +15,23 @@ import time
 import math
 import numpy as np
 import pandas as pd
-from dxf2wkt import convert as dxfconvert
 from enum import Enum
 import random
+
+# getting the name of the directory
+# where the this file is present.
+#dxf2wkt_path = os.path.dirname(os.path.realpath(__file__) + "/../../../scripts/")
+dxf2wkt_path = "/home/rupole1185/opencases/CASI-TEST/bped/scripts"
+sys.path.insert( 0, dxf2wkt_path )
+
+from dxf2wkt import convert as dxfconvert
 
 class Agents(Enum):
    STANDARD = 0
    SLOW     = 1
    DISABLED = 2
 
-#CUSTOM read and extraction of information from a single CAD FILE [replaced by dxf2wkt.py JuPedSim script]
+#TODO REMOVE THIS CUSTOM read and extraction of information from a single CAD FILE [replaced by dxf2wkt.py JuPedSim script]
 def load_file_dxf( filename, multipoly=False ):
    print( f'Extracting layer: {filename}' )
 
@@ -98,7 +105,7 @@ def plot_simulation_configuration(geometry, starting_positions, exit_areas):
     plt.close( fig )
 
 if __name__ == "__main__":
-   nAgents  = 15
+   nAgents  = 10
    nIterMax = 100000
    probabilityCloseExit = 0.90
    Exec     = True
@@ -115,10 +122,10 @@ if __name__ == "__main__":
    Agent        = 1 - AgentSlow - AgentDisable
 
    #Files
-   filename      = "Counterflow.dxf"
-   WALLS         = "WALLS"
-   EXITS         = [ "EXITS" ]
-   DISTRIBUTIONS = [ "DISTRIBUTIONS" ]
+   filename      = "data/geometries/counter_flow.dxf"
+   WALLS         = "walkablearea"
+   EXITS         = [ "jps-exits" ]
+   DISTRIBUTIONS = [ "jps-distributions" ]
 
    print( "########## SETUP #################" )
    #official reader from JuPedSim
@@ -300,6 +307,9 @@ if __name__ == "__main__":
             times.append( simulation_cfsm.elapsed_time() )
             agents.append( simulation_cfsm.agent_count() )
 
+            #for agent in simulation_cfsm.agents():
+            #CFR: https://github.com/PedestrianDynamics/pyFDS-Evac/blob/9b70aea5c5a636437b30a70ccbeb937aa0bcd666/src/jpstooling.py#L290
+
          ax_AgentsTime.plot( times, agents, label="line {}".format( iAnalysis ) )
          ax_AgentsTime.set_xbound( lower=0 )
          ax_AgentsTime.set_ybound( lower=0 )
@@ -347,6 +357,15 @@ if __name__ == "__main__":
    ax.set_ylabel("Evacuation time [s]")
    fig = ax.get_figure()
    fig.savefig( "EvacuationTimeStats.png" )
+
+
+   data = np.ceil( evacuationTime['Evacuation time'].to_list() ).astype(np.int64)
+   counts, bins = np.histogram( data, density=True )
+   fig = plt.figure()
+   plt.hist( evacuationTime['Evacuation time'] )
+   plt.xlabel('Evacuation time [s]')
+   plt.ylabel('Frequency')
+   fig.savefig( "EvacuationTimeHistogram.png" )
    
    #      print( "Density and speed ..." )
    #      min_frame_profiles = 45000
